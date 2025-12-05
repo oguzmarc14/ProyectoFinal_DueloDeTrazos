@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/game_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#000000">
+
+    <!-- Círculo guía - se muestra atrás -->
+    <FrameLayout
+        android:id="@+id/containerCircle"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- DrawingView (usuario dibuja encima del círculo) -->
+    <FrameLayout
+        android:id="@+id/containerCanvas"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Botones flotantes abajo -->
+    <LinearLayout
+        android:orientation="horizontal"
+        android:padding="16dp"
+        android:gravity="center"
+        android:layout_gravity="bottom"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <Button
+            android:id="@+id/btnClear"
+            android:text="Limpiar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:backgroundTint="#444444"
+            android:textColor="#FFFFFF" />
+
+        <Button
+            android:id="@+id/btnFinish"
+            android:text="Terminar"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="12dp"
+            android:backgroundTint="#6200EE"
+            android:textColor="#FFFFFF" />
+    </LinearLayout>
+
+</FrameLayout>
