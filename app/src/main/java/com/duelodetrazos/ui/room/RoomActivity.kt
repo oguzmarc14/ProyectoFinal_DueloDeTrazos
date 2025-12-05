@@ -21,10 +21,11 @@ class RoomActivity : AppCompatActivity() {
         // Lista de pantallas que quiero mostrar como si fueran portadas de musica
         // Aqui puse nombres de ejemplo pero despues los cambiamos
         val albumList = listOf(
-            AlbumItem("Modo de juego", R.drawable.bad2),
-            AlbumItem("Historial", R.drawable.nodal),
-            AlbumItem("Resultados", R.drawable.jesus)
+            AlbumItem("Crear sala", R.drawable.bad2),
+            AlbumItem("Unirme a sala", R.drawable.nodal),
+            AlbumItem("Modo de juego", R.drawable.jesus)
         )
+
 
         // Configuro el RecyclerView en formato grid de 2 columnas
         binding.rvAlbums.layoutManager = GridLayoutManager(this, 2)
