@@ -46,6 +46,13 @@ dependencies {
     implementation("com.google.android.material:material:1.12.0")
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+
+    // Parse SDK (Back4App)
+    implementation("com.github.parse-community.Parse-SDK-Android:parse:4.2.1")
+
+    // WebSocket para Parse LiveQuery
+    implementation("org.java-websocket:Java-WebSocket:1.5.3")
+
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

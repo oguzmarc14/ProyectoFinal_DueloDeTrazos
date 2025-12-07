@@ -2,8 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <application
+    <!-- Necesario para Back4App -->
+    <uses-permission android:name="android.permission.INTERNET" />
 
+    <application
+        android:name=".DueloDeTrazosApp"
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
@@ -33,4 +36,3 @@
     </application>
 
 </manifest>
-
