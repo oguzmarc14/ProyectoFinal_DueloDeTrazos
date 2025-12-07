@@ -8,26 +8,29 @@ import android.graphics.Path
 import android.view.MotionEvent
 import android.view.View
 
-// DrawingView es una vista personalizada donde el usuario puede dibujar
-// Esta vista maneja el trazo, color y movimiento del dedo
+// DrawingView es la vista donde el usuario dibuja
+// Maneja trazo, color y movimiento del dedo
 class DrawingView(context: Context) : View(context) {
 
-    // Path almacena la linea que el usuario dibuja
+    // Path almacena el trazo que va dibujando el usuario
     private val drawPath = Path()
 
-    // Paint define el estilo de la linea (color, grosor, etc)
+    // Pintura del pincel
     private val drawPaint = Paint().apply {
-        color = Color.WHITE     // Color por defecto del pincel
-        strokeWidth = 14f       // Grosor del pincel
+        color = Color.WHITE     // Color del pincel
+        strokeWidth = 14f       // Grosor
         style = Paint.Style.STROKE
         strokeJoin = Paint.Join.ROUND
         strokeCap = Paint.Cap.ROUND
-        isAntiAlias = true      // Hace que el trazo se vea mas suave
+        isAntiAlias = true
     }
+
+    // Listener para enviar la posicion del toque a GameActivity
+    var onTouchPoint: ((Float, Float) -> Unit)? = null
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        // Dibujo la linea que el usuario ha trazado
+        // Dibujo del trazo del usuario
         canvas.drawPath(drawPath, drawPaint)
     }
 
@@ -35,28 +38,25 @@ class DrawingView(context: Context) : View(context) {
         val x = event.x
         val y = event.y
 
-        // Dependiendo del tipo de toque, actualizo el path
         when (event.action) {
             MotionEvent.ACTION_DOWN -> {
-                // Inicio un nuevo trazo
                 drawPath.moveTo(x, y)
             }
             MotionEvent.ACTION_MOVE -> {
-                // Continúo la linea conforme se mueve el dedo
                 drawPath.lineTo(x, y)
             }
         }
 
-        // Redibujo la pantalla
+        // Informo al juego la posicion tocada
+        onTouchPoint?.invoke(x, y)
+
         invalidate()
         return true
     }
 
-    // ----------------------------
-    // Funcion para limpiar el dibujo
-    // ----------------------------
+    // Limpia todo el dibujo
     fun clear() {
-        drawPath.reset() // Borra todo el trazo
-        invalidate()     // Actualiza la pantalla
+        drawPath.reset()
+        invalidate()
     }
 }

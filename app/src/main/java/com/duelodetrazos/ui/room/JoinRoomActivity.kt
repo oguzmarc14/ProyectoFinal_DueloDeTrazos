@@ -1,10 +1,12 @@
 package com.duelodetrazos.ui.room
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.duelodetrazos.databinding.ActivityJoinRoomBinding
+import com.duelodetrazos.network.ClientManager
+import com.duelodetrazos.ui.game.GameActivity
 
-// Pantalla donde escribo un codigo para unirme
 class JoinRoomActivity : AppCompatActivity() {
 
     private lateinit var binding: ActivityJoinRoomBinding
@@ -15,11 +17,17 @@ class JoinRoomActivity : AppCompatActivity() {
         binding = ActivityJoinRoomBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        // Accion del boton para unirse
         binding.btnJoin.setOnClickListener {
-            val code = binding.edtCode.text.toString().uppercase()
+            val code = binding.edtCode.text.toString()
 
-            // Aqui mas adelante verifico si el codigo existe o no
+            val client = ClientManager("10.0.2.2")
+
+            client.connect {
+                runOnUiThread {
+                    val intent = Intent(this, GameActivity::class.java)
+                    startActivity(intent)
+                }
+            }
         }
     }
 }
