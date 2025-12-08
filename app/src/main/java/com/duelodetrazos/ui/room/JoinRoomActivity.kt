@@ -31,29 +31,44 @@ class JoinRoomActivity : AppCompatActivity() {
     }
 
     private fun joinRoom(code: String) {
+
         val query = ParseQuery.getQuery<ParseObject>("Room")
         query.whereEqualTo("code", code)
-        query.whereEqualTo("status", "waiting")
+        query.whereEqualTo("status", "waiting") // solo salas esperando un jugador
 
         query.getFirstInBackground { room, e ->
+
             if (e != null || room == null) {
-                Toast.makeText(this, "No existe una sala esperando", Toast.LENGTH_LONG).show()
+                Toast.makeText(
+                    this,
+                    "No existe una sala disponible con ese código.",
+                    Toast.LENGTH_LONG
+                ).show()
                 return@getFirstInBackground
             }
 
+            // Asignar jugador 2
             val player2Id = PlayerManager.getPlayerId(this)
-
             room.put("player2Id", player2Id)
-            room.put("status", "ready")
+            room.put("status", "ready")   // la sala ya tiene 2 jugadores
 
             room.saveInBackground(SaveCallback { err ->
                 if (err == null) {
-                    Toast.makeText(this, "Te uniste. Esperando inicio...", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Te uniste a la sala. Esperando inicio del juego...",
+                        Toast.LENGTH_LONG
+                    ).show()
 
-                    // ⛔ No abrimos GameActivity aquí.
-                    // La partida iniciará por LiveQuery cuando el servidor cambie el estado.
+                    // ⛔ IMPORTANTE:
+                    // NO abrir GameActivity aquí
+                    // El host iniciará LiveQuery y el juego después
                 } else {
-                    Toast.makeText(this, "Error: ${err.localizedMessage}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        this,
+                        "Error al unirse: ${err.localizedMessage}",
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
             })
         }

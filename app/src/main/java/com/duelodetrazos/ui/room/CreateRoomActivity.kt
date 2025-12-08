@@ -6,7 +6,6 @@ import androidx.appcompat.app.AppCompatActivity
 import com.duelodetrazos.PlayerManager
 import com.duelodetrazos.databinding.ActivityCreateRoomBinding
 import com.parse.ParseObject
-import com.parse.SaveCallback
 import kotlin.random.Random
 
 class CreateRoomActivity : AppCompatActivity() {
@@ -24,25 +23,21 @@ class CreateRoomActivity : AppCompatActivity() {
             binding.txtRoomCode.text = code
 
             val playerId = PlayerManager.getPlayerId(this)
-
-            // 🔹 Guardar la sala correctamente en Back4App
             saveRoomToServer(code, playerId)
         }
     }
 
-    /** Genera un código tipo AB12 **/
     private fun generateRoomCode(): String {
         val letters = ('A'..'Z').random().toString() + ('A'..'Z').random()
         val numbers = Random.nextInt(10, 99).toString()
         return letters + numbers
     }
 
-    /** Guarda la sala (CORRECTO según PDF) **/
     private fun saveRoomToServer(code: String, player1Id: String) {
         val room = ParseObject("Room")
 
         room.put("code", code)
-        room.put("status", "waiting")     // Esperando jugador 2
+        room.put("status", "waiting")
         room.put("player1Id", player1Id)
         room.put("player2Id", "")
         room.put("player1Score", 0)
@@ -50,24 +45,12 @@ class CreateRoomActivity : AppCompatActivity() {
         room.put("currentRound", 0)
         room.put("maxRounds", 10)
 
-        room.saveInBackground(SaveCallback { e ->
+        room.saveInBackground { e ->
             if (e == null) {
-                Toast.makeText(
-                    this,
-                    "Sala creada. Esperando a que otro jugador se una...",
-                    Toast.LENGTH_LONG
-                ).show()
-
-                // ⛔ NO abrimos GameActivity aquí
-                // ⛔ NO iniciamos servidores locales
-
+                Toast.makeText(this, "Sala creada correctamente.", Toast.LENGTH_LONG).show()
             } else {
-                Toast.makeText(
-                    this,
-                    "Error al crear sala: ${e.localizedMessage}",
-                    Toast.LENGTH_LONG
-                ).show()
+                Toast.makeText(this, e.localizedMessage, Toast.LENGTH_LONG).show()
             }
-        })
+        }
     }
 }

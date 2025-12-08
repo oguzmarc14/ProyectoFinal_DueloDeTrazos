@@ -2,19 +2,21 @@ package com.duelodetrazos
 
 import android.app.Application
 import com.parse.Parse
+import com.parse.ParseInstallation
 
 class DueloDeTrazosApp : Application() {
 
     override fun onCreate() {
         super.onCreate()
 
-        // TODO: Reemplazar con tus credenciales reales de Back4App
         Parse.initialize(
             Parse.Configuration.Builder(this)
-                .applicationId("AQUÍ_TU_APPLICATION_ID")
-                .clientKey("AQUÍ_TU_CLIENT_KEY")
-                .server("https://AQUÍ_TU_URL.back4app.io/")
+                .applicationId("A4lODRoPJmp1awuWdNXrVDMmMmtGGEjSwtsqwVjy")
+                .clientKey("bL3c4PquKN6GfHelqKfI3jIb3lxHeRAuAnSvE1kJ")
+                .server("https://parseapi.back4app.com/")
                 .build()
         )
+
+        ParseInstallation.getCurrentInstallation().saveInBackground()
     }
 }
