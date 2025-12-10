@@ -1,78 +1,75 @@
 package com.duelodetrazos.network
 
 import android.util.Log
-import com.duelodetrazos.models.*
+import com.duelodetrazos.data.models.GameEvent
+import com.duelodetrazos.data.models.GameEventType
 import com.parse.ParseObject
 import com.parse.ParseQuery
 import com.parse.livequery.ParseLiveQueryClient
 import com.parse.livequery.SubscriptionHandling
+import org.json.JSONObject
 import java.net.URI
 import java.util.Date
 
-class LiveQueryManager private constructor() {
-
-    companion object {
-        private var INSTANCE: LiveQueryManager? = null
-
-        fun getInstance(): LiveQueryManager {
-            if (INSTANCE == null) INSTANCE = LiveQueryManager()
-            return INSTANCE!!
-        }
-
-        private const val LIVEQUERY_URL =
-            "wss://A4lODRoPJmp1awuWdNXrVDMmMmtGGEjSwtsqwVjy.back4app.io/"
-    }
+object LiveQueryManager {
 
     private var client: ParseLiveQueryClient? = null
     private var subscription: SubscriptionHandling<ParseObject>? = null
+    private var query: ParseQuery<ParseObject>? = null
 
-    fun initClientIfNeeded() {
-        if (client == null) {
-            try {
-                client = ParseLiveQueryClient.Factory.getClient(URI(LIVEQUERY_URL))
-                Log.d("LiveQuery", "Cliente LiveQuery inicializado")
-            } catch (e: Exception) {
-                Log.e("LiveQuery", "Error inicializando LiveQueryClient", e)
-            }
+    var onSpawn: ((Float, Float) -> Unit)? = null
+    var onHit: (() -> Unit)? = null
+    var onScoreUpdate: ((Int, Int) -> Unit)? = null
+    var onRoundUpdate: ((Int) -> Unit)? = null
+    var onGameEnd: (() -> Unit)? = null
+    var onError: ((Throwable) -> Unit)? = null
+
+    fun sendEvent(roomId: String, type: String, data: JSONObject) {
+        val event = ParseObject("GameEvent").apply {
+            put("roomCode", roomId)
+            put("type", type)
+            put("payload", data)
         }
+        event.saveInBackground()
     }
 
-    fun subscribeToRoom(roomCode: String, listener: GameEventsListener) {
-        initClientIfNeeded()
+    fun connect(roomId: String) {
+        // Inicialización manual del cliente (MÉTODO CLÁSICO)
+        if (client == null) {
+            try {
+                client = ParseLiveQueryClient.Factory.getClient(URI("wss://A4lODRoPJmp1awuWdNXrVDMmMmtGGEjSwtsqwVjy.back4app.io/"))
+            } catch (e: Exception) {
+                onError?.invoke(e)
+                return
+            }
+        }
 
-        val query = ParseQuery.getQuery<ParseObject>("GameEvent")
-            .whereEqualTo("roomCode", roomCode)
+        query = ParseQuery.getQuery<ParseObject>("GameEvent").whereEqualTo("roomCode", roomId)
 
-        // ✅ ESTA ES LA LÍNEA CORRECTA
-        subscription = client?.subscribe(query, ParseObject::class.java)
+        subscription = client?.subscribe(query)
 
+        // Usar handleEvent (MÉTODO CLÁSICO)
         subscription?.handleEvent(SubscriptionHandling.Event.CREATE) { _, obj ->
             try {
                 val event = parseEvent(obj)
-                dispatchEvent(event, listener)
+                dispatchEvent(event)
             } catch (e: Exception) {
-                listener.onError(e)
+                onError?.invoke(e)
             }
         }
 
         subscription?.handleError { _, e ->
-            listener.onError(e)
+            onError?.invoke(e)
         }
 
-        Log.d("LiveQuery", "Suscrito a sala: $roomCode")
+        Log.d("LiveQuery", "Suscrito a la sala: $roomId")
     }
 
-    fun unsubscribe() {
-        try {
-            subscription?.let { sub ->
-                client?.unsubscribe(sub, ParseObject::class.java)
-            }
-            subscription = null
-        } catch (_: Exception) {}
+    fun disconnect() {
+        query?.let { client?.unsubscribe(it) }
     }
 
     private fun parseEvent(obj: ParseObject): GameEvent {
-
         val payload = (obj.get("payload") as? Map<*, *>)?.mapNotNull { (k, v) ->
             (k as? String)?.let { it to v }
         }?.toMap() ?: emptyMap()
@@ -87,58 +84,24 @@ class LiveQueryManager private constructor() {
         )
     }
 
-    private fun dispatchEvent(event: GameEvent, listener: GameEventsListener) {
+    private fun dispatchEvent(event: GameEvent) {
         when (event.type) {
-            GameEventType.SPAWN ->
-                listener.onSpawn(
-                    event,
-                    GameEventPayload.Spawn(
-                        event.payload["targetX"].toString().toFloat(),
-                        event.payload["targetY"].toString().toFloat(),
-                        event.payload["radius"].toString().toFloat(),
-                        event.payload["round"].toString().toInt()
-                    )
-                )
-
-            GameEventType.HIT ->
-                listener.onHit(
-                    event,
-                    GameEventPayload.Hit(
-                        event.playerId ?: "",
-                        event.payload["hitX"].toString().toFloat(),
-                        event.payload["hitY"].toString().toFloat(),
-                        event.payload["hitTimeMs"].toString().toLong()
-                    )
-                )
-
-            GameEventType.SCORE ->
-                listener.onScore(
-                    event,
-                    GameEventPayload.Score(
-                        event.payload["player1Score"].toString().toInt(),
-                        event.payload["player2Score"].toString().toInt(),
-                        event.payload["lastWinnerId"] as? String
-                    )
-                )
-
-            GameEventType.END ->
-                listener.onEnd(
-                    event,
-                    GameEventPayload.End(
-                        event.payload["winnerId"] as? String,
-                        event.payload["finalScoreP1"].toString().toInt(),
-                        event.payload["finalScoreP2"].toString().toInt(),
-                        event.payload["reason"].toString()
-                    )
-                )
+            GameEventType.SPAWN -> {
+                val x = (event.payload["x"] as? Number)?.toFloat() ?: 0f
+                val y = (event.payload["y"] as? Number)?.toFloat() ?: 0f
+                onSpawn?.invoke(x, y)
+            }
+            GameEventType.HIT -> {
+                onHit?.invoke()
+            }
+            GameEventType.SCORE -> {
+                val p1 = (event.payload["player1Score"] as? Number)?.toInt() ?: 0
+                val p2 = (event.payload["player2Score"] as? Number)?.toInt() ?: 0
+                onScoreUpdate?.invoke(p1, p2)
+            }
+            GameEventType.END -> {
+                onGameEnd?.invoke()
+            }
         }
     }
-}
-
-interface GameEventsListener {
-    fun onSpawn(event: GameEvent, payload: GameEventPayload.Spawn)
-    fun onHit(event: GameEvent, payload: GameEventPayload.Hit)
-    fun onScore(event: GameEvent, payload: GameEventPayload.Score)
-    fun onEnd(event: GameEvent, payload: GameEventPayload.End)
-    fun onError(e: Throwable)
 }

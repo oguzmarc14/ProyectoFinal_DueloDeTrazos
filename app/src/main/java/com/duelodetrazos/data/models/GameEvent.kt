@@ -1,4 +1,4 @@
-package com.duelodetrazos.models
+package com.duelodetrazos.data.models
 
 import java.util.Date
 

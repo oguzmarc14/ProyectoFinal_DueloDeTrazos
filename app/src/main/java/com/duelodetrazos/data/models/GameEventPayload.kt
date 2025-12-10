@@ -1,4 +1,4 @@
-package com.duelodetrazos.models
+package com.duelodetrazos.data.models
 
 sealed class GameEventPayload {
 

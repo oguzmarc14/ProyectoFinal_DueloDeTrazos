@@ -1,181 +1,195 @@
 package com.duelodetrazos.ui.game
 
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.ViewTreeObserver
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.duelodetrazos.databinding.ActivityGameBinding
 import com.duelodetrazos.network.LiveQueryManager
-import com.duelodetrazos.ui.canvas.CircleCanvas
 import com.duelodetrazos.ui.canvas.DrawingView
+import com.parse.GetCallback
+import com.parse.ParseException
+import com.parse.ParseObject
+import com.parse.ParseQuery
 import org.json.JSONObject
 import kotlin.random.Random
 
 class GameActivity : AppCompatActivity() {
 
+    companion object {
+        private const val POLLING_INTERVAL_MS = 100L
+    }
+
     private lateinit var binding: ActivityGameBinding
 
+    // --- Vistas ---
     private lateinit var drawingView: DrawingView
     private lateinit var objectiveView: ObjectiveCircleView
+    private lateinit var explosionView: ParticleExplosionView
 
+    // --- Datos de la Sala ---
     private var roomId: String = ""
     private var isPlayer1 = false
 
-    private var scoreP1 = 0
-    private var scoreP2 = 0
-    private var round = 1
-    private val maxRounds = 10
+    // --- Lógica de Polling ---
+    private val pollingHandler = Handler(Looper.getMainLooper())
+    private var pollingRunnable: Runnable? = null
+    private var lastSeenSpawnId: String? = null
+    private var lastSeenHitId: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         binding = ActivityGameBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
-        //----------------------------------------
-        // 0. RECIBIR DATOS DE LA SALA
-        //----------------------------------------
-        roomId = intent.getStringExtra("roomId") ?: ""
-        isPlayer1 = intent.getBooleanExtra("isPlayer1", false)
-
-        if (roomId.isEmpty()) {
-            Toast.makeText(this, "Error: roomId vacío", Toast.LENGTH_SHORT).show()
+        if (!getIntentData()) {
             finish()
+            return
         }
 
-        //----------------------------------------
-        // 1. Dibujar círculo guía
-        //----------------------------------------
-        val circleCanvas = CircleCanvas(this)
-        binding.containerCircle.addView(circleCanvas)
+        setupViews()
+        setupGameInfo() // <-- NUEVA FUNCIÓN
+        startGameWhenReady()
+        setupButtons()
+    }
 
-        //----------------------------------------
-        // 2. Vista donde se dibuja
-        //----------------------------------------
+    private fun getIntentData(): Boolean {
+        roomId = intent.getStringExtra("roomId") ?: ""
+        isPlayer1 = intent.getBooleanExtra("isPlayer1", false)
+        if (roomId.isEmpty()) {
+            Toast.makeText(this, "Error: No se recibió el ID de la sala.", Toast.LENGTH_LONG).show()
+            return false
+        }
+        return true
+    }
+
+    private fun setupViews() {
         drawingView = DrawingView(this)
         binding.containerCanvas.addView(drawingView)
 
-        //----------------------------------------
-        // 3. Objetivo
-        //----------------------------------------
         objectiveView = ObjectiveCircleView(this)
         binding.containerCanvas.addView(objectiveView)
 
-        drawingView.onTouchPoint = { x, y ->
-            objectiveView.checkHit(x, y)
-        }
+        explosionView = ParticleExplosionView(this)
+        binding.containerCanvas.addView(explosionView)
 
-        //----------------------------------------
-        // 4. ACIERTO LOCAL -> ENVIAR EVENTO HIT
-        //----------------------------------------
-        objectiveView.onHit = {
-            sendHitEvent()
-        }
-
-        //----------------------------------------
-        // 5. Conectarnos a LiveQuery
-        //----------------------------------------
-        setupLiveQuery()
-
-        //----------------------------------------
-        // 6. Si eres jugador 1, generas primer SPAWN
-        //----------------------------------------
-        binding.containerCanvas.post {
-            if (isPlayer1) spawnObjective()
-        }
-
-        //----------------------------------------
-        // BOTÓN LIMPIAR
-        //----------------------------------------
-        binding.btnClear.setOnClickListener {
-            drawingView.clear()
-        }
-
-        //----------------------------------------
-        // BOTÓN TERMINAR
-        //----------------------------------------
-        binding.btnFinish.setOnClickListener {
-            endGame()
-        }
+        objectiveView.onHit = { registerHit() }
     }
 
-    // ---------------------------------------------------------
-    // SPAWN LOCAL -> se manda a la nube (solo Player1)
-    // ---------------------------------------------------------
-    private fun spawnObjective() {
+    private fun setupGameInfo() {
+        binding.tvRoomCode.text = roomId
+        binding.tvPlayer1Name.text = "Jugador 1"
+        binding.tvPlayer2Name.text = "Jugador 2"
+    }
+
+    private fun startGameWhenReady() {
+        val observer = binding.containerCanvas.viewTreeObserver
+        observer.addOnGlobalLayoutListener(object : ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                binding.containerCanvas.viewTreeObserver.removeOnGlobalLayoutListener(this)
+
+                drawingView.onTouchPoint = { x, y -> objectiveView.checkHit(x, y) }
+
+                if (isPlayer1) {
+                    spawnNewObjective()
+                    startPollingForHits()
+                } else {
+                    startPollingForSpawns()
+                }
+            }
+        })
+    }
+
+    // --- LÓGICA DE POLLING ---
+
+    private fun startPollingForSpawns() {
+        pollingRunnable = Runnable {
+            val query = ParseQuery.getQuery<ParseObject>("GameEvent")
+            query.whereEqualTo("roomCode", roomId)
+            query.whereEqualTo("type", "SPAWN")
+            query.orderByDescending("createdAt")
+            query.getFirstInBackground(object : GetCallback<ParseObject> {
+                override fun done(obj: ParseObject?, e: ParseException?) {
+                    if (e == null && obj != null) {
+                        if (obj.objectId != lastSeenSpawnId) {
+                            lastSeenSpawnId = obj.objectId
+                            val payload = obj.getJSONObject("payload")
+                            if (payload != null) {
+                                val x = payload.getDouble("x").toFloat()
+                                val y = payload.getDouble("y").toFloat()
+                                objectiveView.setPosition(x, y)
+                            }
+                        }
+                    }
+                    pollingRunnable?.let { pollingHandler.postDelayed(it, POLLING_INTERVAL_MS) }
+                }
+            })
+        }
+        pollingRunnable?.let { pollingHandler.post(it) }
+    }
+
+    private fun startPollingForHits() {
+        pollingRunnable = Runnable {
+            val query = ParseQuery.getQuery<ParseObject>("GameEvent")
+            query.whereEqualTo("roomCode", roomId)
+            query.whereEqualTo("type", "HIT")
+            query.orderByDescending("createdAt")
+            query.getFirstInBackground(object : GetCallback<ParseObject> {
+                override fun done(obj: ParseObject?, e: ParseException?) {
+                    if (e == null && obj != null) {
+                        if (obj.objectId != lastSeenHitId) {
+                            lastSeenHitId = obj.objectId
+                            spawnNewObjective()
+                        }
+                    }
+                    pollingRunnable?.let { pollingHandler.postDelayed(it, POLLING_INTERVAL_MS) }
+                }
+            })
+        }
+        pollingRunnable?.let { pollingHandler.post(it) }
+    }
+
+    // --- LÓGICA DEL JUEGO ---
+
+    private fun spawnNewObjective() {
         val width = binding.containerCanvas.width
         val height = binding.containerCanvas.height
 
-        val x = Random.nextInt(80, width - 80).toFloat()
-        val y = Random.nextInt(80, height - 80).toFloat()
+        if (width == 0 || height == 0) return
 
-        // Enviar SPAWN al servidor
-        val data = JSONObject().apply {
-            put("x", x)
-            put("y", y)
-        }
+        val horizontalMargin = (width * 0.20f).toInt()
+        val verticalMargin = (height * 0.20f).toInt()
 
+        val x = Random.nextInt(horizontalMargin, width - horizontalMargin).toFloat()
+        val y = Random.nextInt(verticalMargin, height - verticalMargin).toFloat()
+
+        objectiveView.setPosition(x, y)
+
+        val data = JSONObject().apply { put("x", x); put("y", y) }
         LiveQueryManager.sendEvent(roomId, "SPAWN", data)
     }
 
-    // HIT LOCAL → enviar a ambos jugadores
-    private fun sendHitEvent() {
-        LiveQueryManager.sendEvent(roomId, "HIT", JSONObject())
+    private fun registerHit() {
+        val hitX = objectiveView.getCircleX()
+        val hitY = objectiveView.getCircleY()
+        val hitColor = objectiveView.getCircleColor()
+
+        objectiveView.setPosition(-200f, -200f)
+        explosionView.startExplosion(hitX, hitY, hitColor)
+
+        val playerId = if (isPlayer1) "player1" else "player2"
+        LiveQueryManager.sendEvent(roomId, "HIT", JSONObject().put("playerId", playerId))
     }
 
-    // FIN DE PARTIDA
-    private fun endGame() {
-        LiveQueryManager.sendEvent(roomId, "END", JSONObject())
-    }
-
-    // ---------------------------------------------------------
-    // LiveQuery → escuchar eventos
-    // ---------------------------------------------------------
-    private fun setupLiveQuery() {
-
-        LiveQueryManager.onSpawn = { x, y ->
-            runOnUiThread {
-                objectiveView.setPosition(x, y)
-            }
-        }
-
-        LiveQueryManager.onHit = {
-            runOnUiThread {
-                if (isPlayer1) scoreP1++ else scoreP2++
-                updateScores()
-                spawnObjective()   // el host genera nuevo spawn
-            }
-        }
-
-        LiveQueryManager.onScoreUpdate = { p1, p2 ->
-            runOnUiThread {
-                scoreP1 = p1
-                scoreP2 = p2
-                updateScores()
-            }
-        }
-
-        LiveQueryManager.onRoundUpdate = { newRound ->
-            runOnUiThread {
-                round = newRound
-            }
-        }
-
-        LiveQueryManager.onGameEnd = {
-            runOnUiThread {
-                Toast.makeText(this, "La partida terminó", Toast.LENGTH_LONG).show()
-                finish()
-            }
-        }
-
-        LiveQueryManager.connect(roomId)
-    }
-
-    private fun updateScores() {
-        // Aquí luego agregamos marcador visual
+    private fun setupButtons() {
+        binding.btnClear.setOnClickListener { drawingView.clear() }
+        binding.btnFinish.setOnClickListener { /* Lógica futura */ }
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        LiveQueryManager.disconnect()
+        pollingRunnable?.let { pollingHandler.removeCallbacks(it) }
     }
 }

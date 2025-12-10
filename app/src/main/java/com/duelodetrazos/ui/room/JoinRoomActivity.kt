@@ -1,10 +1,12 @@
 package com.duelodetrazos.ui.room
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import com.duelodetrazos.PlayerManager
 import com.duelodetrazos.databinding.ActivityJoinRoomBinding
+import com.duelodetrazos.ui.game.GameActivity
 import com.parse.ParseObject
 import com.parse.ParseQuery
 import com.parse.SaveCallback
@@ -56,13 +58,15 @@ class JoinRoomActivity : AppCompatActivity() {
                 if (err == null) {
                     Toast.makeText(
                         this,
-                        "Te uniste a la sala. Esperando inicio del juego...",
+                        "Te uniste a la sala. Iniciando como Jugador 2...",
                         Toast.LENGTH_LONG
                     ).show()
 
-                    // ⛔ IMPORTANTE:
-                    // NO abrir GameActivity aquí
-                    // El host iniciará LiveQuery y el juego después
+                    val intent = Intent(this, GameActivity::class.java)
+                    intent.putExtra("roomId", code)
+                    intent.putExtra("isPlayer1", false)
+                    startActivity(intent)
+
                 } else {
                     Toast.makeText(
                         this,
